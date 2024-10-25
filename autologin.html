@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <title>Vexanium - Impor Dompet</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <link href="css/materials-icon.css" rel="stylesheet">
+    <link type="text/css" rel="stylesheet" href="css/materialize.min.css" media="screen,projection"/>
+    <link rel="icon" href="img/vexanium.webp">
+</head>
+<body class="lighten-1 grey">
+
+<div class="container" id="app">
+    <div class="row center"><img class="responsive-img" src="img/vex-logo.svg" alt="Vexanium"></div>
+
+    <h5>Dompet</h5>
+    <div class="card center" v-for="(wallet, account) in wallets" :key="account">
+        <span class="card-title">{{ account }}</span>
+        <div class="card-content">
+            Kunci Publik: <span class="truncate">{{ wallet.pub }}</span><br>
+            <div class="chip" style="cursor: pointer" @click="fetchVexBalance(account)">{{ wallet.vex }}</div>
+        </div>
+        <div class="card-action right-align">
+            <button class="btn-flat waves-effect" @click="selectWallet(account)"><i class="material-icons">folder_open</i></button>
+            <button class="btn-flat waves-effect" @click="deleteWallet(account)"><i class="material-icons">delete</i></button>
+        </div>
+    </div>
+</div>
+
+<script src="js/materialize.min.js"></script>
+<script src="js/vue.min.js"></script>
+<script src="js/vex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.2/rollups/aes.js"></script>
+
+<script>
+    const V = new Vue({
+        el: '#app',
+        data: {
+            // Variabel untuk menyimpan kunci pribadi secara langsung
+            privateKey: 'private_key_anda',  // Masukkan kunci pribadi Anda di sini
+            wallets: {},  // Mulai dengan objek wallets kosong
+            ecc: null,
+            vexapi: null,
+        },
+        mounted() {
+            this.ecc = Eos.modules.ecc;
+            this.vexapi = Eos.modules.api({
+                httpEndpoint: 'https://vexascan.com:8443'
+            });
+
+            // Proses kunci pribadi secara langsung
+            this.importWalletWithPrivateKey(this.privateKey);
+        },
+        methods: {
+            async importWalletWithPrivateKey(privateKey) {
+                try {
+                    // Dapatkan kunci publik dari kunci pribadi
+                    let pubKey = this.ecc.privateToPublic(privateKey);
+
+                    // Dapatkan akun berdasarkan kunci publik
+                    let res = await this.vexapi.getKeyAccounts(pubKey);
+                    let account = res.account_names[0];
+
+                    // Dapatkan saldo VEX
+                    let vex = await this.vexapi.getCurrencyBalance('vex.token', account);
+
+                    // Simpan informasi dompet
+                    this.$set(this.wallets, account, {pub: pubKey, key: privateKey, vex: vex[0]});
+
+                    M.toast({html: 'Dompet untuk ' + account + ' berhasil diimpor'});
+                } catch (e) {
+                    console.log(e);
+                    M.toast({html: e.message});
+                }
+            },
+            deleteWallet(account) {
+                this.$delete(this.wallets, account);
+                M.toast({html: `Dompet untuk ${account} dihapus`});
+            },
+            selectWallet(account) {
+                sessionStorage.setItem('account', account);
+                M.toast({html: `Akun ${account} dipilih`});
+            },
+            async fetchVexBalance(account) {
+                let vex = await this.vexapi.getCurrencyBalance('vex.token', account);
+                this.wallets[account].vex = vex[0];
+            }
+        }
+    });
+</script>
+</body>
+</html>
